@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pose-estimation-s3-latest-image-web.fullname" . }}
+  labels:
+    {{- include "pose-estimation-s3-latest-image-web.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "pose-estimation-s3-latest-image-web.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pose-estimation-s3-latest-image-web.selectorLabels" . | nindent 8 }}
+    spec:
+      volumes:
+      - name: nginx-conf
+        configMap:
+          name: {{ include "pose-estimation-s3-latest-image-web.fullname" . }}
+    {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      serviceAccountName: {{ include "pose-estimation-s3-latest-image-web.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        {{- if .Values.develop.enabled}}
+        - name: {{ .Chart.Name }}-dev
+          image: "{{ .Values.develop.repository }}:{{ .Values.develop.tag }}"
+        {{- end }}
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          volumeMounts:
+            - mountPath: /etc/nginx/nginx.conf
+              name: nginx-conf
+              subPath: nginx.conf
+          {{- with .Values.env }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          {{- if not .Values.develop.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}

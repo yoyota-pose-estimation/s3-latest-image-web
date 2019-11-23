@@ -1,0 +1,43 @@
+apiVersion: skaffold/v1
+kind: Config
+profiles:
+  - name: dev
+    activation:
+      - command: dev
+    build:
+      artifacts:
+        - image: registry.dudaji.org/yoyota/pose-estimation-s3-latest-image-web
+          sync:
+            manual:
+              - src: "src/**/*.js"
+                dest: .
+          docker:
+            target: install
+    deploy:
+      helm:
+        releases:
+          - name: pose-estimation-s3-latest-image-web
+            chartPath: helm/pose-estimation-s3-latest-image-web
+            setValueTemplates:
+              develop.enabled: true
+              develop.repository: "{{.IMAGE_NAME}}"
+              develop.tag: "{{.DIGEST_HEX}}"
+            valuesFiles:
+              - helm/values/dev.yaml
+  - name: run
+    activation:
+      - command: run
+    build:
+      artifacts:
+        - image: registry.dudaji.org/yoyota/pose-estimation-s3-latest-image-web
+    deploy:
+      helm:
+        releases:
+          - name: pose-estimation-s3-latest-image-web
+            namespace: office
+            chartPath: k8s/helm
+            setValueTemplates:
+              image.repository: "{{.IMAGE_NAME}}"
+              image.tag: "{{.DIGEST_HEX}}"
+            valuesFiles:
+              - helm/values/prod.yaml
